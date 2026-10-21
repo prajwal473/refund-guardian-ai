@@ -216,3 +216,8 @@ footer{text-align:center;color:#6f80aa;font-size:11px;padding:28px 0 4px}
 .elig-loading{display:grid;gap:10px}
 .actions button:disabled{opacity:.6;cursor:progress}
 @media(max-width:700px){.elig-facts{grid-template-columns:1fr}}
+
+/* ---------- Unconfirmed deadlines & policy confirmation checkbox ---------- */
+.dl-unconfirmed{background:transparent;border:1px dashed var(--muted);color:var(--muted);font-weight:500;white-space:normal}
+label.check{display:flex;gap:10px;align-items:flex-start;font-size:12px;line-height:1.5;color:#c5d0e4;margin:4px 0 14px}
+label.check input{display:inline-block;width:auto;margin:3px 0 0;flex:none}

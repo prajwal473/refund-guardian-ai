@@ -90,7 +90,12 @@ def followups(case_id: int):
 
 @app.post("/api/receipt/parse-text")
 def parse_receipt(payload: ReceiptTextRequest):
-    return services.parse_receipt_text(payload.text)
+    try:
+        return services.parse_receipt_text(payload.text)
+    except Exception:
+        logger.exception("Receipt parsing failed")
+        raise HTTPException(500, "Could not parse the receipt text.")
+
 
 @app.post("/api/cases/{case_id}/evidence-checklist")
 def evidence_checklist(case_id: int):

@@ -1,20 +1,11 @@
-import os
-import tempfile
 from datetime import date, timedelta
 
-# Set DB path before importing services.
-_fd, _path = tempfile.mkstemp(suffix=".db")
-os.close(_fd)
-os.environ["DATABASE_PATH"] = _path
-
+from tests.dbtools import use_fresh_db
 from app import services
 
+
 def setup_function():
-    services.init_db()  # tables must exist before they are cleared (fresh DB when run alone)
-    with services.get_conn() as conn:
-        conn.execute("DELETE FROM followups")
-        conn.execute("DELETE FROM cases")
-        conn.commit()
+    use_fresh_db()   # every test starts with its own empty database
 
 def test_create_case_and_deadline():
     services.init_db()

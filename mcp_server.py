@@ -21,15 +21,26 @@ def list_refund_cases() -> list[dict]:
 def create_refund_case(product_name: str, retailer: str, purchase_date: str,
                        purchase_price: float, issue_description: str,
                        currency: str = "INR", policy_days: int | None = None,
-                       policy_source: str | None = None) -> dict:
-    """Create a case. Supply policy_days only when the user has verified the return window.
-    This records a case only; it does not contact the retailer or submit a claim."""
-    return services.create_case({
-        "product_name": product_name, "retailer": retailer,
-        "purchase_date": purchase_date, "purchase_price": purchase_price,
-        "issue_description": issue_description, "currency": currency,
-        "policy_days": policy_days, "policy_source": policy_source
-    })
+                       policy_source: str | None = None,
+                       policy_confirmed: bool = False) -> dict:
+    """Create a case. Supply policy_days only when the user has verified the return window, and set
+    policy_confirmed=true only if the user states they checked it against the retailer's own policy.
+    Applies the same validation as the web API (dates as YYYY-MM-DD, not in the future; non-blank
+    names; non-negative price; supported currency; policy_days 0-3650). Returns {"error": ...} with a
+    "details" list when input is invalid. This records a case only; it does not contact the retailer
+    or submit a claim."""
+    try:
+        return services.create_case({
+            "product_name": product_name, "retailer": retailer,
+            "purchase_date": purchase_date, "purchase_price": purchase_price,
+            "issue_description": issue_description, "currency": currency,
+            "policy_days": policy_days, "policy_source": policy_source,
+            "policy_confirmed": policy_confirmed,
+        })
+    except services.CaseValidationError as exc:
+        return {"error": f"Invalid case: {exc}", "details": exc.errors}
+    except ValueError as exc:
+        return {"error": str(exc)}
 
 @mcp.tool()
 def draft_support_message(case_id: int) -> dict:
@@ -40,8 +51,9 @@ def draft_support_message(case_id: int) -> dict:
     return services.draft_claim(item)
 
 @mcp.tool()
-def update_case_status(case_id: int, status: str, notes: str = "") -> dict:
-    """Update a case status. Allowed: new, in_progress, waiting_for_user, resolved, closed."""
+def update_case_status(case_id: int, status: str, notes: str | None = None) -> dict:
+    """Update a case status. Allowed: new, in_progress, waiting_for_user, resolved, closed.
+    notes: omit (or null) to leave existing notes unchanged; pass "" to clear them; pass text to replace them."""
     try:
         item = services.update_case(case_id, {"status": status, "notes": notes})
     except ValueError as exc:

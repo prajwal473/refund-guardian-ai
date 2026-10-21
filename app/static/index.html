@@ -4,434 +4,121 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0a1128">
-  <meta name="description" content="Refund Guardian AI helps organize refund claims, track deadlines, and prepare customer support messages.">
   <title>Refund Guardian AI</title>
-
   <link rel="stylesheet" href="/static/styles.css">
-
-  <!-- Prevent dashboard SVG icons from rendering at unexpected sizes. -->
-  <style>
-    .nav-link svg {
-      display: block;
-      width: 20px;
-      height: 20px;
-      min-width: 20px;
-      flex: 0 0 20px;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 1.8;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    .btn-new svg {
-      display: block;
-      width: 18px;
-      height: 18px;
-      min-width: 18px;
-      flex: 0 0 18px;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    .receipt-box textarea {
-      display: block;
-      width: 100%;
-      box-sizing: border-box;
-      margin: 12px 0;
-    }
-
-    .receipt-box summary {
-      cursor: pointer;
-    }
-
-    .message {
-      overflow-wrap: anywhere;
-    }
-
-    button {
-      cursor: pointer;
-    }
-
-    button:focus-visible,
-    a:focus-visible,
-    input:focus-visible,
-    select:focus-visible,
-    textarea:focus-visible,
-    summary:focus-visible {
-      outline: 2px solid #60a5fa;
-      outline-offset: 3px;
-    }
-  </style>
 </head>
-
 <body>
 <div class="app">
 
-  <!-- Sidebar -->
+  <!-- Sidebar (becomes a top bar on small screens) -->
   <aside class="sidebar">
     <div class="brand">
-      <div class="brandmark" aria-hidden="true">RG</div>
-
-      <div class="brand-text">
-        <strong>Refund Guardian</strong>
-        <div class="subbrand">Consumer support, organized.</div>
-      </div>
+      <div class="brandmark">RG</div>
+      <div class="brand-text"><strong>Refund Guardian</strong><div class="subbrand">Consumer support, organized.</div></div>
     </div>
-
-    <nav class="nav" aria-label="Primary navigation">
-
+    <nav class="nav" aria-label="Primary">
       <a href="#overview" class="nav-link active">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="3" y="3" width="7" height="9" rx="1.5"/>
-          <rect x="14" y="3" width="7" height="5" rx="1.5"/>
-          <rect x="14" y="12" width="7" height="9" rx="1.5"/>
-          <rect x="3" y="16" width="7" height="5" rx="1.5"/>
-        </svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
         <span>Dashboard</span>
       </a>
-
       <a href="#claims" class="nav-link">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M4 6h16M4 12h16M4 18h10"/>
-        </svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
         <span>Claims</span>
       </a>
-
       <a href="#deadlines" class="nav-link">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="9"/>
-          <path d="M12 7v5l3 2"/>
-        </svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
         <span>Deadlines</span>
       </a>
-
     </nav>
-
     <div class="sidebar-foot">
       <span class="demo-pill">DEMO MODE</span>
       <p>No claims are submitted automatically.</p>
     </div>
   </aside>
 
-  <!-- Main dashboard -->
-  <main class="main">
-
+  <div class="main">
     <header class="page-header">
       <div>
         <div class="eyebrow">YOUR PERSONAL CONSUMER SUPPORT AGENT</div>
-
         <h1>Turn a frustrating purchase into a clear next step.</h1>
-
-        <div class="notice">
-          Demo policy data only. Deadlines are calculated only from a
-          policy window you enter and verify.
-        </div>
+        <div class="notice">Deadlines are calculated only from a return window you enter. Refund Guardian does not look up or verify retailer policies; dates marked “unconfirmed” have not been checked by you either.</div>
       </div>
-
-      <button
-        type="button"
-        class="btn-new js-open-drawer"
-        id="newClaimBtn"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 5v14M5 12h14"/>
-        </svg>
-        <span>New Refund Claim</span>
+      <button type="button" class="btn-new js-open-drawer" id="newClaimBtn">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        New Refund Claim
       </button>
     </header>
 
-    <!-- Dashboard statistics -->
-    <section id="overview" class="stats" aria-label="Claim overview">
-
-      <article class="stat">
-        <span class="stat-label">Total claims</span>
-        <strong id="statTotal" class="stat-value">–</strong>
-        <span class="stat-sub">All cases on record</span>
-      </article>
-
-      <article class="stat">
-        <span class="stat-label">Active</span>
-        <strong id="statActive" class="stat-value">–</strong>
-        <span class="stat-sub">New, in progress or waiting</span>
-      </article>
-
-      <article class="stat">
-        <span class="stat-label">Due in 7 days</span>
-        <strong id="statDue" class="stat-value">–</strong>
-        <span class="stat-sub">Active cases with a deadline</span>
-      </article>
-
-      <article class="stat">
-        <span class="stat-label">Resolved</span>
-        <strong id="statResolved" class="stat-value">–</strong>
-        <span class="stat-sub">Resolved or closed</span>
-      </article>
-
+    <!-- Stats -->
+    <section id="overview" class="stats" aria-label="Overview">
+      <article class="stat"><span class="stat-label">Total claims</span><strong id="statTotal" class="stat-value">–</strong><span class="stat-sub">All cases on record</span></article>
+      <article class="stat"><span class="stat-label">Active</span><strong id="statActive" class="stat-value">–</strong><span class="stat-sub">New, in progress or waiting</span></article>
+      <article class="stat"><span class="stat-label">Due in 7 days</span><strong id="statDue" class="stat-value">–</strong><span id="statDueSub" class="stat-sub">Confirmed deadlines only</span></article>
+      <article class="stat"><span class="stat-label">Resolved</span><strong id="statResolved" class="stat-value">–</strong><span class="stat-sub">Resolved or closed</span></article>
     </section>
 
-    <!-- Cases and deadlines -->
     <div class="content-grid">
-
       <section id="claims" class="panel">
         <div class="panel-heading">
-          <div>
-            <span class="eyebrow">YOUR WORKSPACE</span>
-            <h2>Case tracker</h2>
-          </div>
-
-          <button id="refreshBtn" class="secondary" type="button">
-            Refresh ↻
-          </button>
+          <div><span class="eyebrow">YOUR WORKSPACE</span><h2>Case tracker</h2></div>
+          <button id="refreshBtn" class="secondary" type="button">Refresh ↻</button>
         </div>
-
-        <div id="caseList" class="case-list" aria-live="polite">
-          <div class="empty">Loading cases…</div>
-        </div>
+        <div id="caseList" class="case-list"><div class="empty">Loading cases…</div></div>
       </section>
 
       <section id="deadlines" class="panel">
         <div class="panel-heading">
-          <div>
-            <span class="eyebrow">STAY AHEAD</span>
-            <h2>Upcoming deadlines</h2>
-          </div>
+          <div><span class="eyebrow">STAY AHEAD</span><h2>Upcoming deadlines</h2></div>
         </div>
-
-        <div id="deadlineList" class="deadline-list" aria-live="polite">
-          <div class="empty">Loading deadlines…</div>
-        </div>
+        <div id="deadlineList" class="deadline-list"><div class="empty">Loading…</div></div>
       </section>
-
     </div>
 
-    <!-- Selected case details -->
-    <section
-      id="detailPanel"
-      class="panel detail-panel hidden"
-      aria-live="polite"
-    >
+    <section id="detailPanel" class="panel detail-panel hidden">
       <div class="panel-heading">
-        <div>
-          <span class="eyebrow">CASE DETAILS</span>
-          <h2 id="detailTitle">Selected case</h2>
-        </div>
-
-        <button id="closeDetail" class="secondary" type="button">
-          Close
-        </button>
+        <div><span class="eyebrow">CASE DETAILS</span><h2 id="detailTitle">Selected case</h2></div>
+        <button id="closeDetail" class="secondary" type="button">Close</button>
       </div>
-
       <div id="detailContent"></div>
     </section>
 
-    <footer>
-      Built for an agentic workflow demo · No claims are submitted automatically.
-    </footer>
-
-  </main>
+    <footer>Built for an agentic workflow demo · No claims are submitted automatically.</footer>
+  </div>
 </div>
 
-<!-- New claim drawer overlay -->
-<div id="drawerOverlay" class="overlay"></div>
-
 <!-- New claim drawer -->
-<aside
-  id="claimDrawer"
-  class="drawer"
-  aria-hidden="true"
-  aria-labelledby="drawerTitle"
-  role="dialog"
->
+<div id="drawerOverlay" class="overlay"></div>
+<aside id="claimDrawer" class="drawer" aria-hidden="true" aria-labelledby="drawerTitle" role="dialog">
   <div class="panel-heading">
-
-    <div>
-      <span class="eyebrow">NEW CASE</span>
-      <h2 id="drawerTitle">What went wrong?</h2>
-    </div>
-
+    <div><span class="eyebrow">NEW CASE</span><h2 id="drawerTitle">What went wrong?</h2></div>
     <div class="head-actions">
-      <button id="demoBtn" class="secondary" type="button">
-        Load demo
-      </button>
-
-      <button
-        id="closeDrawer"
-        class="secondary"
-        type="button"
-        aria-label="Close new claim form"
-      >
-        ✕
-      </button>
+      <button id="demoBtn" class="secondary" type="button">Load demo</button>
+      <button id="closeDrawer" class="secondary" type="button" aria-label="Close">✕</button>
     </div>
-
   </div>
 
-  <!-- Receipt parser -->
   <details class="receipt-box">
-    <summary>
-      🧾 Have a receipt? Paste its text to pre-fill the form
-    </summary>
-
-    <p>
-      Paste text copied from your receipt. This demo parser recognizes
-      supported text patterns; it does not scan receipt images.
-    </p>
-
-    <label for="receiptText">Receipt text</label>
-
-    <textarea
-      id="receiptText"
-      rows="5"
-      placeholder="Product: Wireless headphones&#10;Retailer: Example Store&#10;Date: 2026-10-12&#10;Total: 2999"
-    ></textarea>
-
-    <button
-      id="parseReceiptBtn"
-      class="secondary"
-      type="button"
-    >
-      Extract details
-    </button>
-
-    <div
-      id="receiptMessage"
-      class="message"
-      role="status"
-      aria-live="polite"
-    ></div>
+    <summary>Have a receipt? Paste its text to pre-fill the form</summary>
+    <textarea id="receiptText" rows="5" placeholder="Product: Wireless headphones&#10;Retailer: Example Store&#10;Date: 2026-10-12&#10;Total: 2999"></textarea>
+    <button id="parseReceiptBtn" class="secondary" type="button">Extract details</button>
+    <div id="receiptMessage" class="message" role="status"></div>
   </details>
 
-  <!-- Claim form -->
   <form id="caseForm">
-
-    <label for="productName">
-      Product name
-      <input
-        id="productName"
-        name="product_name"
-        required
-        placeholder="Wireless headphones"
-      >
-    </label>
-
-    <div class="two">
-
-      <label for="retailer">
-        Retailer
-        <input
-          id="retailer"
-          name="retailer"
-          required
-          placeholder="Example Store"
-        >
-      </label>
-
-      <label for="purchaseDate">
-        Purchase date
-        <input
-          id="purchaseDate"
-          name="purchase_date"
-          type="date"
-          required
-        >
-      </label>
-
-    </div>
-
-    <div class="two">
-
-      <label for="purchasePrice">
-        Price
-        <input
-          id="purchasePrice"
-          name="purchase_price"
-          type="number"
-          min="0"
-          step="0.01"
-          required
-          placeholder="2999"
-        >
-      </label>
-
-      <label for="currency">
-        Currency
-        <select id="currency" name="currency">
-          <option value="INR">INR (₹)</option>
-          <option value="USD">USD ($)</option>
-          <option value="GBP">GBP (£)</option>
-        </select>
-      </label>
-
-    </div>
-
-    <label for="issueDescription">
-      What is the issue?
-
-      <textarea
-        id="issueDescription"
-        name="issue_description"
-        required
-        minlength="5"
-        placeholder="The headphones disconnect every few minutes..."
-      ></textarea>
-    </label>
-
-    <div class="two">
-
-      <label for="policyDays">
-        Verified return window (days)
-
-        <input
-          id="policyDays"
-          name="policy_days"
-          type="number"
-          min="0"
-          max="3650"
-          placeholder="Leave blank if unknown"
-        >
-      </label>
-
-      <label for="policySource">
-        Policy source
-
-        <input
-          id="policySource"
-          name="policy_source"
-          placeholder="URL or policy name, if verified"
-        >
-      </label>
-
-    </div>
-
-    <button class="primary" type="submit">
-      Create case <span aria-hidden="true">→</span>
-    </button>
-
+    <label>Product name<input name="product_name" required placeholder="Wireless headphones"></label>
+    <div class="two"><label>Retailer<input name="retailer" required placeholder="Example Store"></label><label>Purchase date<input name="purchase_date" type="date" required></label></div>
+    <div class="two"><label>Price<input name="purchase_price" type="number" min="0" step=".01" required placeholder="2999"></label><label>Currency<select name="currency"><option>INR</option><option>USD</option><option>EUR</option><option>GBP</option><option>AUD</option><option>CAD</option><option>SGD</option><option>AED</option><option>JPY</option></select></label></div>
+    <label>What is the issue?<textarea name="issue_description" required minlength="5" placeholder="The headphones disconnect every few minutes..."></textarea></label>
+    <div class="two"><label>Verified return window (days)<input name="policy_days" type="number" min="0" max="3650" placeholder="Leave blank if unknown"></label><label>Policy source<input name="policy_source" placeholder="URL or policy name, if verified"></label></div>
+    <label class="check"><input type="checkbox" name="policy_confirmed"> I checked this window against the retailer’s own policy myself. Refund Guardian cannot verify it, so leave this unticked if you are unsure.</label>
+    <button class="primary" type="submit">Create case <span>→</span></button>
   </form>
-
-  <div
-    id="formMessage"
-    class="message"
-    role="status"
-    aria-live="polite"
-  ></div>
-
+  <div id="formMessage" class="message" role="status"></div>
 </aside>
 
-<!-- Toast notifications -->
-<div
-  id="toast"
-  class="toast"
-  role="status"
-  aria-live="polite"
-></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<!-- Existing frontend JavaScript -->
+<script src="/static/stats.js"></script>
 <script src="/static/app.js"></script>
-
 </body>
 </html>

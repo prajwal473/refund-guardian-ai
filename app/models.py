@@ -7,15 +7,22 @@ class CaseCreate(BaseModel):
     product_name: str = Field(min_length=1, max_length=160)
     retailer: str = Field(min_length=1, max_length=160)
     purchase_date: str = Field(description="YYYY-MM-DD")
-    purchase_price: float = Field(ge=0)
+    purchase_price: float = Field(ge=0, allow_inf_nan=False)
     currency: str = Field(default="INR", min_length=3, max_length=3)
     issue_description: str = Field(min_length=5, max_length=3000)
     policy_days: Optional[int] = Field(default=None, ge=0, le=3650,
         description="Only use a return window verified by the user; omitted means unknown.")
     policy_source: Optional[str] = Field(default=None, max_length=500)
+    policy_confirmed: bool = Field(default=False,
+        description="True only if the user themselves checked the window against the retailer's own policy. "
+                    "Requires policy_days and policy_source. Refund Guardian does not verify policies.")
+
+# Further rules (supported currencies, strict YYYY-MM-DD, no future purchase dates, ...) live in
+# services.validate_case_input so the REST API and the MCP tools apply exactly the same checks.
 
 class CaseUpdate(BaseModel):
     status: Optional[CaseStatus] = None
+    # Omitted or null = leave notes unchanged; "" = clear them; any other text replaces them.
     notes: Optional[str] = Field(default=None, max_length=3000)
 
 class FollowupCreate(BaseModel):
@@ -36,7 +43,9 @@ class EligibilityResponse(BaseModel):
     outcome: EligibilityOutcome
     outcome_label: str
     explanation: str = Field(description="Deterministic, rule-based explanation. Always present.")
-    policy_verified: bool
+    policy_verified: bool = Field(description="Always false: Refund Guardian does not verify retailer policies.")
+    policy_confirmed_by_user: bool = Field(description="True if the user stated they checked the window against the retailer's policy.")
+    policy_status: Literal["missing", "unconfirmed", "user_confirmed", "not_evaluated"]
     as_of: str = Field(description="Date used for the calculation (YYYY-MM-DD).")
     deadline: Optional[str] = None
     days_remaining: Optional[int] = Field(default=None, description="Negative once the deadline has passed.")

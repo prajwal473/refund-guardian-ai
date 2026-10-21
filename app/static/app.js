@@ -14,29 +14,26 @@ async function api(url, options={}) {
 }
 
 /* ---------- UI helpers (presentation only) ---------- */
-const ACTIVE_STATUSES = ["new", "in_progress", "waiting_for_user"];
-const isActive = (c) => ACTIVE_STATUSES.includes(c.status);
+const { isActive, isConfirmed, daysUntil, computeStats } = window.RGStats;
 const statusLabel = (s) => String(s ?? "").replaceAll("_", " ");
 const money = (c) => `${esc(c.currency)} ${Number(c.purchase_price).toFixed(2)}`;
 const badge = (status) => `<span class="badge badge-${esc(status)}">${esc(statusLabel(status))}</span>`;
 
-function daysUntil(dateStr) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr || "");
-  if (!m) return null;
-  const target = new Date(+m[1], +m[2] - 1, +m[3]);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  return Math.round((target - today) / 86400000);
-}
 function deadlineChip(c) {
   if (!c.deadline) return '<span class="dl dl-unknown">Unknown — verify policy</span>';
   if (!isActive(c)) return `<span class="dl dl-muted">${esc(c.deadline)}</span>`;
   const n = daysUntil(c.deadline);
   if (n === null) return `<span class="dl">${esc(c.deadline)}</span>`;
-  let cls = "dl-ok", text = `in ${n} days`;
+  let text = `in ${n} days`;
+  if (n < 0) text = `${-n} day${n === -1 ? "" : "s"} past`;
+  else if (n === 0) text = "today";
+  else if (n === 1) text = "tomorrow";
+  if (!isConfirmed(c)) {
+    // Not an established deadline: the user has not confirmed the window against the retailer's policy.
+    return `<span class="dl dl-unconfirmed" title="Based on a window you entered but have not confirmed against the retailer's own policy">${esc(c.deadline)} · ${text} · unconfirmed</span>`;
+  }
+  let cls = "dl-ok";
   if (n < 0) { cls = "dl-bad"; text = `overdue by ${-n} day${n === -1 ? "" : "s"}`; }
-  else if (n === 0) { cls = "dl-bad"; text = "today"; }
-  else if (n === 1) { cls = "dl-bad"; text = "tomorrow"; }
   else if (n <= 3) cls = "dl-bad";
   else if (n <= 7) cls = "dl-warn";
   return `<span class="dl ${cls}">${esc(c.deadline)} · ${text}</span>`;
@@ -85,6 +82,7 @@ $("#demoBtn").addEventListener("click", () => {
   form.elements.issue_description.value = "The headphones disconnect every few minutes during normal use.";
   form.elements.policy_days.value = "10";
   form.elements.policy_source.value = "DEMO ONLY — illustrative 10-day window, not a real retailer policy";
+  form.elements.policy_confirmed.checked = false;
   $("#formMessage").textContent = "Demo data loaded. The policy window is illustrative; verify real policies before relying on a deadline.";
 });
 form.addEventListener("submit", async (e) => {
@@ -93,6 +91,7 @@ form.addEventListener("submit", async (e) => {
   data.purchase_price = Number(data.purchase_price);
   data.policy_days = data.policy_days === "" ? null : Number(data.policy_days);
   data.policy_source = data.policy_source || null;
+  data.policy_confirmed = form.elements.policy_confirmed.checked;
   try {
     const result = await api("/api/cases", {method:"POST",body:JSON.stringify(data)});
     $("#formMessage").textContent = `Case #${result.id} created.`;
@@ -111,12 +110,13 @@ $("#parseReceiptBtn").addEventListener("click", async () => {
   try {
     const r = await api("/api/receipt/parse-text", {method:"POST", body:JSON.stringify({text})});
     const found = [];
-    for (const key of ["product_name", "retailer", "purchase_date", "purchase_price"]) {
+    for (const key of ["product_name", "retailer", "purchase_date", "purchase_price", "currency"]) {
       if (r[key] !== undefined && r[key] !== null && form.elements[key]) {
         form.elements[key].value = r[key]; found.push(key.replaceAll("_", " "));
       }
     }
-    msg.textContent = (found.length ? `Filled: ${found.join(", ")}. ` : "Nothing recognised. Use lines like “Product: …”, “Retailer: …”, “Date: YYYY-MM-DD”, “Total: …”. ") + (r.parser_note || "");
+    const warnings = (r.warnings || []).join(" ");
+    msg.textContent = (found.length ? `Filled: ${found.join(", ")}. ` : "Nothing recognised. Use lines like “Product: …”, “Retailer: …”, “Date: YYYY-MM-DD”, “Total: …”. ") + warnings + (warnings ? " " : "") + (r.parser_note || "");
   } catch(err) { msg.textContent = err.message; }
 });
 
@@ -127,10 +127,16 @@ $("#closeDetail").addEventListener("click", () => $("#detailPanel").classList.ad
 function renderStats(cases) {
   const set = (id, v) => { $(id).textContent = v; };
   if (!cases) { ["#statTotal", "#statActive", "#statDue", "#statResolved"].forEach(i => set(i, "–")); return; }
-  set("#statTotal", cases.length);
-  set("#statActive", cases.filter(isActive).length);
-  set("#statDue", cases.filter(c => { const n = daysUntil(c.deadline); return isActive(c) && n !== null && n <= 7; }).length);
-  set("#statResolved", cases.filter(c => !isActive(c)).length);
+  const st = computeStats(cases);
+  set("#statTotal", st.total);
+  set("#statActive", st.active);
+  set("#statDue", st.dueSoonConfirmed);          // confirmed deadlines only; overdue cases are never counted here
+  set("#statResolved", st.resolved);
+  const parts = ["Confirmed deadlines only"];
+  if (st.dueSoonUnconfirmed) parts.push(`${st.dueSoonUnconfirmed} unconfirmed not counted`);
+  const overdue = st.overdueConfirmed + st.overdueUnconfirmed;
+  if (overdue) parts.push(`${overdue} past due`);
+  set("#statDueSub", parts.join(" · "));
 }
 
 function renderDeadlines(cases) {
@@ -140,10 +146,11 @@ function renderDeadlines(cases) {
     .sort((a, b) => a.deadline.localeCompare(b.deadline))
     .slice(0, 6);
   if (!items.length) {
-    box.innerHTML = '<div class="empty empty-rich"><div class="empty-icon">⏱</div><strong>No upcoming deadlines</strong><span>Add a verified return window to a case and its deadline will appear here.</span></div>';
+    box.innerHTML = '<div class="empty empty-rich"><div class="empty-icon">⏱</div><strong>No upcoming deadlines</strong><span>Add a return window to a case and its date will appear here.</span></div>';
     return;
   }
   box.innerHTML = items.map(c => `<div class="dl-item" data-id="${c.id}" tabindex="0" role="button"><div><div class="dl-title">${esc(c.product_name)}</div><div class="case-meta">${esc(c.retailer)} · Case #${c.id}</div></div>${deadlineChip(c)}</div>`).join("");
+  if (items.some(c => !isConfirmed(c))) box.insertAdjacentHTML("beforeend", '<p class="case-meta">Dates marked <em>unconfirmed</em> come from a window you have not confirmed against the retailer’s own policy. Treat them as reminders, not entitlements.</p>');
   box.querySelectorAll("[data-id]").forEach(el => {
     el.addEventListener("click", () => openCase(Number(el.dataset.id)));
     el.addEventListener("keydown", (e) => { if (e.key === "Enter") openCase(Number(el.dataset.id)); });
@@ -175,6 +182,12 @@ async function loadCases() {
 
 /* ---------- Eligibility analysis rendering ---------- */
 const ulist = (items) => items && items.length ? `<ul>${items.map(i=>`<li>${esc(i)}</li>`).join("")}</ul>` : "";
+const POLICY_STATUS_TEXT = {
+  user_confirmed: "Confirmed by you (not checked by Refund Guardian)",
+  unconfirmed: "Not confirmed",
+  missing: "No return window recorded",
+  not_evaluated: "Not evaluated",
+};
 function renderEligibility(r) {
   const days = r.days_remaining;
   const when = days === null || days === undefined ? "" : days > 0 ? `${days} day${days===1?"":"s"} remaining` : days === 0 ? "last day" : `passed ${-days} day${days===-1?"":"s"} ago`;
@@ -186,8 +199,8 @@ function renderEligibility(r) {
     <div class="elig-head"><h3>Eligibility analysis</h3><span class="elig-pill">${esc(r.outcome_label)}</span></div>
     <p class="elig-text">${esc(r.explanation)}</p>
     <div class="elig-facts">
-      <div class="detail-box"><small>POLICY</small>${r.policy_verified ? "Window and source recorded" : "Not verified"}</div>
-      <div class="detail-box"><small>DEADLINE</small>${r.deadline ? esc(r.deadline) : "Unknown"}${when ? `<br>${esc(when)}${r.policy_verified ? "" : " (unconfirmed)"}` : ""}</div>
+      <div class="detail-box"><small>POLICY</small>${esc(POLICY_STATUS_TEXT[r.policy_status] || "Unknown")}</div>
+      <div class="detail-box"><small>DEADLINE</small>${r.deadline ? esc(r.deadline) : "Not established"}${when ? `<br>${esc(when)}${r.policy_status === "user_confirmed" ? "" : " (unconfirmed)"}` : ""}</div>
       <div class="detail-box"><small>METHOD</small>${r.analysis_method === "rule_based" ? "Rule-based" : "Rule-based + AI explanation"}<br>as of ${esc(r.as_of)}</div>
     </div>
     ${ai}${note}
@@ -206,7 +219,7 @@ async function openCase(id) {
     $("#detailContent").innerHTML = `
       <div class="detail-grid">
         <div class="detail-box"><small>ISSUE</small>${esc(c.issue_description)}</div>
-        <div class="detail-box"><small>DEADLINE / POLICY</small>${c.deadline ? esc(c.deadline) : "Not established — verify terms first"}\n${esc(c.policy_source || "No policy source recorded")}</div>
+        <div class="detail-box"><small>DEADLINE / POLICY</small>${c.deadline ? esc(c.deadline) + (c.policy_confirmed ? " (confirmed by you)" : " (unconfirmed)") : "Not established — verify terms first"}\n${esc(c.policy_source || "No policy source recorded")}</div>
         <div class="detail-box"><small>PURCHASE</small>${esc(c.retailer)} · ${esc(c.purchase_date)}\n${money(c)}</div>
         <div class="detail-box"><small>STATUS</small>${badge(c.status)}</div>
       </div>
