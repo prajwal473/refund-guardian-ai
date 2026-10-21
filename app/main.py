@@ -91,3 +91,12 @@ def followups(case_id: int):
 @app.post("/api/receipt/parse-text")
 def parse_receipt(payload: ReceiptTextRequest):
     return services.parse_receipt_text(payload.text)
+
+@app.post("/api/cases/{case_id}/evidence-checklist")
+def evidence_checklist(case_id: int):
+    item = services.get_case(case_id)
+
+    if not item:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    return services.generate_evidence_checklist(item)
