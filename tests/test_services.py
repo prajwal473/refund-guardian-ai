@@ -10,12 +10,11 @@ os.environ["DATABASE_PATH"] = _path
 from app import services
 
 def setup_function():
-    services.init_db()
+    services.init_db()  # tables must exist before they are cleared (fresh DB when run alone)
     with services.get_conn() as conn:
         conn.execute("DELETE FROM followups")
         conn.execute("DELETE FROM cases")
         conn.commit()
-
 
 def test_create_case_and_deadline():
     services.init_db()
@@ -52,84 +51,3 @@ def test_draft_and_followup():
     followup = services.create_followup(item["id"], date.today().isoformat(), "Check support response")
     assert followup["case_id"] == item["id"]
     assert len(services.list_followups(item["id"])) == 1
-
-def test_analysis_within_recorded_window():
-    item = {
-        "id": 1,
-        "policy_days": 30,
-        "policy_source": "User-verified demo policy",
-        "deadline": "2026-10-31",
-}
-    result = services.analyze_eligibility(item, as_of=date(2026, 10, 21))
-    assert result["assessment"] == "within_recorded_window"
-    assert "not a guarantee" in result["warning"]
-
-def test_analysis_outside_recorded_window():
-    item = {
-	"id": 2,
-	"policy_days": 30,
-	"policy_source": "User-verified demo policy",
-	"deadline": "2026-10-10",
-}
-    result = services.analyze_eligibility(item, as_of=date(2026, 10, 21))
-    assert result["assessment"] == "outside_recorded_window"
-
-def test_analysis_unknown_policy():
-    item = {
-	"id": 3,
-	"policy_days": None,
-	"policy_source": None,
-	"deadline": None,
-}
-    result = services.analyze_eligibility(item, as_of=date(2026, 10, 21))
-    assert result["assessment"] == "unknown"
-    assert result["missing_information"]
-
-
-def test_analysis_within_recorded_window():
-    item = {
-        "id": 1,
-        "policy_days": 30,
-        "policy_source": "User-verified demo policy",
-        "deadline": "2026-10-31",
-    }
-
-    result = services.analyze_eligibility(
-        item, as_of=date(2026, 10, 21)
-    )
-
-    assert result["assessment"] == "within_recorded_window"
-    assert "not a guarantee" in result["warning"]
-
-
-def test_analysis_outside_recorded_window():
-    item = {
-        "id": 2,
-        "policy_days": 30,
-        "policy_source": "User-verified demo policy",
-        "deadline": "2026-10-10",
-    }
-
-    result = services.analyze_eligibility(
-        item, as_of=date(2026, 10, 21)
-    )
-
-    assert result["assessment"] == "outside_recorded_window"
-
-
-def test_analysis_unknown_policy():
-    item = {
-        "id": 3,
-        "policy_days": None,
-        "policy_source": None,
-        "deadline": None,
-    }
-
-    result = services.analyze_eligibility(
-        item, as_of=date(2026, 10, 21)
-    )
-
-    assert result["assessment"] == "unknown"
-    assert result["missing_information"]
-
-

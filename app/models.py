@@ -24,3 +24,25 @@ class FollowupCreate(BaseModel):
 
 class ReceiptTextRequest(BaseModel):
     text: str = Field(min_length=1, max_length=20000)
+
+EligibilityOutcome = Literal["potentially_eligible", "outside_known_window",
+                             "needs_policy_verification", "insufficient_information"]
+
+class EligibilityRequest(BaseModel):
+    use_llm: bool = Field(default=True, description="Add an optional AI explanation if a model provider is configured.")
+
+class EligibilityResponse(BaseModel):
+    case_id: int
+    outcome: EligibilityOutcome
+    outcome_label: str
+    explanation: str = Field(description="Deterministic, rule-based explanation. Always present.")
+    policy_verified: bool
+    as_of: str = Field(description="Date used for the calculation (YYYY-MM-DD).")
+    deadline: Optional[str] = None
+    days_remaining: Optional[int] = Field(default=None, description="Negative once the deadline has passed.")
+    missing_information: list[str]
+    recommended_next_steps: list[str]
+    caveats: list[str]
+    analysis_method: Literal["rule_based", "rule_based+llm_explanation"]
+    ai_explanation: Optional[str] = None
+    llm_note: Optional[str] = None

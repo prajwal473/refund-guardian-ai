@@ -1,13 +1,17 @@
+import logging
 import os
 from pathlib import Path
+from typing import Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from app.models import CaseCreate, CaseUpdate, FollowupCreate, ReceiptTextRequest
+from app.models import (CaseCreate, CaseUpdate, EligibilityRequest, EligibilityResponse,
+                        FollowupCreate, ReceiptTextRequest)
 from app import services
 
 app = FastAPI(title="Refund Guardian AI", version="0.1.0",
               description="Consumer-support case organizer demo. Does not submit claims.")
+logger = logging.getLogger("refund_guardian")
 services.init_db()
 STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -54,6 +58,19 @@ def make_draft(case_id: int):
     if not item:
         raise HTTPException(404, "Case not found")
     return services.draft_claim(item)
+
+@app.post("/api/cases/{case_id}/eligibility", response_model=EligibilityResponse)
+def analyze_case_eligibility(case_id: int, payload: Optional[EligibilityRequest] = None):
+    item = services.get_case(case_id)
+    if not item:
+        raise HTTPException(404, "Case not found")
+    use_llm = payload.use_llm if payload is not None else True
+    try:
+        analysis = services.analyze_eligibility(item)
+        return services.add_llm_explanation(analysis, use_llm=use_llm)
+    except Exception:
+        logger.exception("Eligibility analysis failed for case %s", case_id)
+        raise HTTPException(500, "Eligibility analysis failed. Please try again.")
 
 @app.post("/api/cases/{case_id}/followups", status_code=201)
 def add_followup(case_id: int, payload: FollowupCreate):

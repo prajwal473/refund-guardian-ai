@@ -196,3 +196,23 @@ footer{text-align:center;color:#6f80aa;font-size:11px;padding:28px 0 4px}
   .stat-value{font-size:28px}
   .nav-link span{font-size:12px}
 }
+
+/* ---------- Eligibility analysis ---------- */
+.elig{margin:16px 0;padding:18px;border:1px solid var(--line);border-left:4px solid var(--gray);border-radius:12px;background:#0a1431;animation:rise .35s ease both}
+.elig-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.elig-head h3{margin:0;font:700 16px var(--head)}
+.elig-pill{border-radius:99px;padding:5px 12px;font-size:12px;font-weight:700;background:#94a3b822;color:var(--gray)}
+.elig-text{font-size:14px;line-height:1.65;margin:12px 0}
+.elig-facts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0}
+.elig h4{margin:16px 0 6px;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted)}
+.elig ul{margin:0;padding-left:20px;font-size:13px;line-height:1.7}
+.elig-ai{margin:12px 0;padding:13px;border:1px dashed var(--blue);border-radius:10px;background:var(--blue-soft);font-size:13px;line-height:1.6}
+.elig-ai small{display:block;margin-bottom:6px;font-size:10px;letter-spacing:1px;font-weight:700;color:var(--blue-hi)}
+.elig-potentially_eligible{border-left-color:var(--green)}.elig-potentially_eligible .elig-pill{background:#34d39922;color:var(--green)}
+.elig-outside_known_window{border-left-color:var(--red)}.elig-outside_known_window .elig-pill{background:#f8717122;color:var(--red)}
+.elig-needs_policy_verification{border-left-color:var(--amber)}.elig-needs_policy_verification .elig-pill{background:#fbbf2422;color:var(--amber)}
+.elig-insufficient_information{border-left-color:var(--gray)}
+.elig-error{border-left-color:var(--red);color:#fecaca;font-size:13px;line-height:1.6}
+.elig-loading{display:grid;gap:10px}
+.actions button:disabled{opacity:.6;cursor:progress}
+@media(max-width:700px){.elig-facts{grid-template-columns:1fr}}
