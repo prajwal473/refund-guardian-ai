@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Refund Guardian AI</title><link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brandmark">RG</div><div><strong>Refund Guardian</strong><div class="subbrand">Consumer support, organized.</div></div>
+  <span class="demo-pill">DEMO MODE</span>
+</header>
+<main class="layout">
+  <section class="hero">
+    <div class="eyebrow">YOUR PERSONAL CONSUMER SUPPORT AGENT</div>
+    <h1>Turn a frustrating purchase into a clear next step.</h1>
+    <p>Track a return or warranty issue, prepare a support message, and keep every follow-up in one place.</p>
+    <div class="notice">Demo policy data only. Deadlines are calculated only from a policy window you enter and verify.</div>
+  </section>
+  <section class="grid">
+    <article class="panel form-panel">
+      <div class="panel-heading"><div><span class="eyebrow">NEW CASE</span><h2>What went wrong?</h2></div><button id="demoBtn" class="secondary">Load demo</button></div>
+      <form id="caseForm">
+        <label>Product name<input name="product_name" required placeholder="Wireless headphones"></label>
+        <div class="two"><label>Retailer<input name="retailer" required placeholder="Example Store"></label><label>Purchase date<input name="purchase_date" type="date" required></label></div>
+        <div class="two"><label>Price<input name="purchase_price" type="number" min="0" step=".01" required placeholder="2999"></label><label>Currency<select name="currency"><option>INR</option><option>USD</option><option>GBP</option></select></label></div>
+        <label>What is the issue?<textarea name="issue_description" required minlength="5" placeholder="The headphones disconnect every few minutes..."></textarea></label>
+        <div class="two"><label>Verified return window (days)<input name="policy_days" type="number" min="0" max="3650" placeholder="Leave blank if unknown"></label><label>Policy source<input name="policy_source" placeholder="URL or policy name, if verified"></label></div>
+        <button class="primary" type="submit">Create case <span>→</span></button>
+      </form>
+      <div id="formMessage" class="message" role="status"></div>
+    </article>
+    <article class="panel">
+      <div class="panel-heading"><div><span class="eyebrow">YOUR WORKSPACE</span><h2>Case tracker</h2></div><button id="refreshBtn" class="secondary">Refresh ↻</button></div>
+      <div id="caseList" class="case-list"><div class="empty">Loading cases…</div></div>
+    </article>
+  </section>
+  <section id="detailPanel" class="panel detail-panel hidden">
+    <div class="panel-heading"><div><span class="eyebrow">CASE DETAILS</span><h2 id="detailTitle">Selected case</h2></div><button id="closeDetail" class="secondary">Close</button></div>
+    <div id="detailContent"></div>
+  </section>
+  <footer>Built for an agentic workflow demo · No claims are submitted automatically.</footer>
+</main>
+<script src="/static/app.js"></script>
+</body></html>
