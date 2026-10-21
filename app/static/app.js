@@ -1,12 +1,79 @@
 const $ = (s) => document.querySelector(s);
 const form = $("#caseForm");
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
 async function api(url, options={}) {
   const res = await fetch(url, {headers:{"Content-Type":"application/json"}, ...options});
   const data = await res.json().catch(()=>({detail:"Unexpected response"}));
-  if(!res.ok) throw new Error(data.detail || "Request failed");
+  if(!res.ok) {
+    const d = data.detail;
+    // FastAPI validation errors arrive as a list of {msg, loc} objects
+    throw new Error(typeof d === "string" ? d : Array.isArray(d) ? d.map(x => x.msg).join("; ") : "Request failed");
+  }
   return data;
 }
+
+/* ---------- UI helpers (presentation only) ---------- */
+const ACTIVE_STATUSES = ["new", "in_progress", "waiting_for_user"];
+const isActive = (c) => ACTIVE_STATUSES.includes(c.status);
+const statusLabel = (s) => String(s ?? "").replaceAll("_", " ");
+const money = (c) => `${esc(c.currency)} ${Number(c.purchase_price).toFixed(2)}`;
+const badge = (status) => `<span class="badge badge-${esc(status)}">${esc(statusLabel(status))}</span>`;
+
+function daysUntil(dateStr) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr || "");
+  if (!m) return null;
+  const target = new Date(+m[1], +m[2] - 1, +m[3]);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((target - today) / 86400000);
+}
+function deadlineChip(c) {
+  if (!c.deadline) return '<span class="dl dl-unknown">Unknown — verify policy</span>';
+  if (!isActive(c)) return `<span class="dl dl-muted">${esc(c.deadline)}</span>`;
+  const n = daysUntil(c.deadline);
+  if (n === null) return `<span class="dl">${esc(c.deadline)}</span>`;
+  let cls = "dl-ok", text = `in ${n} days`;
+  if (n < 0) { cls = "dl-bad"; text = `overdue by ${-n} day${n === -1 ? "" : "s"}`; }
+  else if (n === 0) { cls = "dl-bad"; text = "today"; }
+  else if (n === 1) { cls = "dl-bad"; text = "tomorrow"; }
+  else if (n <= 3) cls = "dl-bad";
+  else if (n <= 7) cls = "dl-warn";
+  return `<span class="dl ${cls}">${esc(c.deadline)} · ${text}</span>`;
+}
+
+let toastTimer;
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 3200);
+}
+
+/* ---------- New claim drawer ---------- */
+function openDrawer() {
+  $("#claimDrawer").classList.add("open");
+  $("#drawerOverlay").classList.add("open");
+  $("#claimDrawer").setAttribute("aria-hidden", "false");
+  setTimeout(() => form.elements.product_name.focus(), 250);
+}
+function closeDrawer() {
+  $("#claimDrawer").classList.remove("open");
+  $("#drawerOverlay").classList.remove("open");
+  $("#claimDrawer").setAttribute("aria-hidden", "true");
+}
+document.addEventListener("click", (e) => { if (e.target.closest(".js-open-drawer")) openDrawer(); });
+$("#closeDrawer").addEventListener("click", closeDrawer);
+$("#drawerOverlay").addEventListener("click", closeDrawer);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
+
+document.querySelectorAll(".nav-link").forEach(a => a.addEventListener("click", () => {
+  document.querySelectorAll(".nav-link").forEach(x => x.classList.remove("active"));
+  a.classList.add("active");
+}));
+
+/* ---------- Form (existing behavior preserved) ---------- */
 function formObj() { return Object.fromEntries(new FormData(form).entries()); }
 $("#demoBtn").addEventListener("click", () => {
   const d = new Date(); d.setDate(d.getDate()-8);
@@ -30,19 +97,82 @@ form.addEventListener("submit", async (e) => {
     const result = await api("/api/cases", {method:"POST",body:JSON.stringify(data)});
     $("#formMessage").textContent = `Case #${result.id} created.`;
     await loadCases(); await openCase(result.id); form.reset();
+    closeDrawer();
+    toast(`Case #${result.id} created.`);
   } catch(err) { $("#formMessage").textContent = err.message; }
 });
+
+/* ---------- Receipt text parser (uses existing POST /api/receipt/parse-text) ---------- */
+$("#parseReceiptBtn").addEventListener("click", async () => {
+  const msg = $("#receiptMessage");
+  const text = $("#receiptText").value.trim();
+  if (!text) { msg.textContent = "Paste some receipt text first."; return; }
+  msg.textContent = "Extracting…";
+  try {
+    const r = await api("/api/receipt/parse-text", {method:"POST", body:JSON.stringify({text})});
+    const found = [];
+    for (const key of ["product_name", "retailer", "purchase_date", "purchase_price"]) {
+      if (r[key] !== undefined && r[key] !== null && form.elements[key]) {
+        form.elements[key].value = r[key]; found.push(key.replaceAll("_", " "));
+      }
+    }
+    msg.textContent = (found.length ? `Filled: ${found.join(", ")}. ` : "Nothing recognised. Use lines like “Product: …”, “Retailer: …”, “Date: YYYY-MM-DD”, “Total: …”. ") + (r.parser_note || "");
+  } catch(err) { msg.textContent = err.message; }
+});
+
 $("#refreshBtn").addEventListener("click", loadCases);
 $("#closeDetail").addEventListener("click", () => $("#detailPanel").classList.add("hidden"));
+
+/* ---------- Dashboard rendering ---------- */
+function renderStats(cases) {
+  const set = (id, v) => { $(id).textContent = v; };
+  if (!cases) { ["#statTotal", "#statActive", "#statDue", "#statResolved"].forEach(i => set(i, "–")); return; }
+  set("#statTotal", cases.length);
+  set("#statActive", cases.filter(isActive).length);
+  set("#statDue", cases.filter(c => { const n = daysUntil(c.deadline); return isActive(c) && n !== null && n <= 7; }).length);
+  set("#statResolved", cases.filter(c => !isActive(c)).length);
+}
+
+function renderDeadlines(cases) {
+  const box = $("#deadlineList");
+  const items = cases
+    .filter(c => isActive(c) && c.deadline && daysUntil(c.deadline) !== null)
+    .sort((a, b) => a.deadline.localeCompare(b.deadline))
+    .slice(0, 6);
+  if (!items.length) {
+    box.innerHTML = '<div class="empty empty-rich"><div class="empty-icon">⏱</div><strong>No upcoming deadlines</strong><span>Add a verified return window to a case and its deadline will appear here.</span></div>';
+    return;
+  }
+  box.innerHTML = items.map(c => `<div class="dl-item" data-id="${c.id}" tabindex="0" role="button"><div><div class="dl-title">${esc(c.product_name)}</div><div class="case-meta">${esc(c.retailer)} · Case #${c.id}</div></div>${deadlineChip(c)}</div>`).join("");
+  box.querySelectorAll("[data-id]").forEach(el => {
+    el.addEventListener("click", () => openCase(Number(el.dataset.id)));
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter") openCase(Number(el.dataset.id)); });
+  });
+}
+
 async function loadCases() {
-  const list = $("#caseList"); list.innerHTML = '<div class="empty">Loading…</div>';
+  const list = $("#caseList");
+  list.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
   try {
     const cases = await api("/api/cases");
-    if(!cases.length){list.innerHTML='<div class="empty">No cases yet.<br>Load the demo or create your first case.</div>';return;}
-    list.innerHTML = cases.map(c=>`<div class="case-card" data-id="${c.id}"><div class="case-title">${esc(c.product_name)} · ${esc(c.retailer)}</div><div class="case-meta">Case #${c.id} · ${esc(c.purchase_date)} · ${esc(c.currency)} ${Number(c.purchase_price).toFixed(2)}<br>Deadline: ${c.deadline ? esc(c.deadline) : "Unknown — verify policy"}</div><span class="badge">${esc(c.status.replaceAll("_"," "))}</span></div>`).join("");
-    list.querySelectorAll("[data-id]").forEach(el=>el.addEventListener("click",()=>openCase(Number(el.dataset.id))));
-  } catch(err){list.innerHTML=`<div class="empty">${esc(err.message)}</div>`;}
+    renderStats(cases);
+    renderDeadlines(cases);
+    if(!cases.length){
+      list.innerHTML = '<div class="empty empty-rich"><div class="empty-icon">🛡</div><strong>No cases yet</strong><span>Load the demo or create your first refund claim.</span><button type="button" class="btn-new js-open-drawer">New Refund Claim</button></div>';
+      return;
+    }
+    list.innerHTML = `<div class="table-wrap"><table class="claims-table"><thead><tr><th>Case</th><th>Amount</th><th>Deadline</th><th>Status</th></tr></thead><tbody>${cases.map(c=>`<tr data-id="${c.id}" tabindex="0"><td data-label="Case"><div class="case-title">${esc(c.product_name)}</div><div class="case-meta">${esc(c.retailer)} · Case #${c.id}<br>Purchased ${esc(c.purchase_date)}</div></td><td data-label="Amount">${money(c)}</td><td data-label="Deadline">${deadlineChip(c)}</td><td data-label="Status">${badge(c.status)}</td></tr>`).join("")}</tbody></table></div>`;
+    list.querySelectorAll("[data-id]").forEach(el => {
+      el.addEventListener("click", () => openCase(Number(el.dataset.id)));
+      el.addEventListener("keydown", (e) => { if (e.key === "Enter") openCase(Number(el.dataset.id)); });
+    });
+  } catch(err){
+    renderStats(null);
+    list.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
+    $("#deadlineList").innerHTML = '<div class="empty">Could not load deadlines.</div>';
+  }
 }
+
 async function openCase(id) {
   try {
     const c = await api(`/api/cases/${id}`);
@@ -53,6 +183,8 @@ async function openCase(id) {
       <div class="detail-grid">
         <div class="detail-box"><small>ISSUE</small>${esc(c.issue_description)}</div>
         <div class="detail-box"><small>DEADLINE / POLICY</small>${c.deadline ? esc(c.deadline) : "Not established — verify terms first"}\n${esc(c.policy_source || "No policy source recorded")}</div>
+        <div class="detail-box"><small>PURCHASE</small>${esc(c.retailer)} · ${esc(c.purchase_date)}\n${money(c)}</div>
+        <div class="detail-box"><small>STATUS</small>${badge(c.status)}</div>
       </div>
       <div class="actions">
         <button id="draftBtn">Generate support draft</button>
@@ -63,10 +195,10 @@ async function openCase(id) {
       <div id="draftResult"></div>
       <h3>Follow-ups</h3>
       <div class="case-list">${followups.length ? followups.map(f=>`<div class="detail-box"><small>${esc(f.due_date)}</small>${esc(f.note)} · ${f.done ? "Done" : "Pending"}</div>`).join("") : '<div class="empty">No follow-ups scheduled.</div>'}</div>`;
-    $("#draftBtn").onclick = async()=>{const d=await api(`/api/cases/${id}/draft`,{method:"POST"});$("#draftResult").innerHTML=`<h3>Support message draft</h3><div class="detail-box">${esc(d.draft)}</div><p class="case-meta">${esc(d.warning)}</p>`;};
-    $("#followBtn").onclick = async()=>{const due=prompt("Follow-up date (YYYY-MM-DD):");if(!due)return;const note=prompt("What should you follow up on?");if(!note)return;try{await api(`/api/cases/${id}/followups`,{method:"POST",body:JSON.stringify({due_date:due,note})});await openCase(id);}catch(e){alert(e.message)}};
-    $("#progressBtn").onclick = async()=>{await api(`/api/cases/${id}`,{method:"PATCH",body:JSON.stringify({status:"in_progress"})});await loadCases();await openCase(id);};
-    $("#resolveBtn").onclick = async()=>{if(!confirm("Mark this case resolved? Only do this if it is actually resolved."))return;await api(`/api/cases/${id}`,{method:"PATCH",body:JSON.stringify({status:"resolved"})});await loadCases();await openCase(id);};
+    $("#draftBtn").onclick = async()=>{try{const d=await api(`/api/cases/${id}/draft`,{method:"POST"});$("#draftResult").innerHTML=`<h3>Support message draft</h3><div class="detail-box">${esc(d.draft)}</div><p class="case-meta">${esc(d.warning)}</p>`;}catch(e){toast(e.message)}};
+    $("#followBtn").onclick = async()=>{const due=prompt("Follow-up date (YYYY-MM-DD):");if(!due)return;const note=prompt("What should you follow up on?");if(!note)return;try{await api(`/api/cases/${id}/followups`,{method:"POST",body:JSON.stringify({due_date:due,note})});await openCase(id);toast("Follow-up scheduled.");}catch(e){alert(e.message)}};
+    $("#progressBtn").onclick = async()=>{try{await api(`/api/cases/${id}`,{method:"PATCH",body:JSON.stringify({status:"in_progress"})});await loadCases();await openCase(id);}catch(e){toast(e.message)}};
+    $("#resolveBtn").onclick = async()=>{if(!confirm("Mark this case resolved? Only do this if it is actually resolved."))return;try{await api(`/api/cases/${id}`,{method:"PATCH",body:JSON.stringify({status:"resolved"})});await loadCases();await openCase(id);}catch(e){toast(e.message)}};
     $("#detailPanel").scrollIntoView({behavior:"smooth",block:"start"});
   } catch(err){alert(err.message);}
 }
