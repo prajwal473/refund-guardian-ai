@@ -124,6 +124,7 @@ def draft_claim(case_data: dict) -> dict:
         if case_data.get("deadline") else
         "Please confirm the applicable return or warranty terms and any relevant deadline."
     )
+
     message = f"""Hello {case_data['retailer']} support,
 
 I purchased {case_data['product_name']} on {case_data['purchase_date']} for \
@@ -135,8 +136,12 @@ I purchased {case_data['product_name']} on {case_data['purchase_date']} for \
 Could you please advise on the applicable return, replacement, repair, or warranty process and the evidence you need? I can provide the receipt and any requested troubleshooting details.
 
 Thank you."""
-    return {"case_id": case_data["id"], "draft": message,
-            "warning": "Draft only. Review the facts and retailer policy before sending."}
+
+    return {
+        "case_id": case_data["id"],
+        "draft": message,
+        "warning": "Draft only. Review the facts and retailer policy before sending."
+    }
 
 def parse_receipt_text(text: str) -> dict:
     """Lightweight demo parser. It does not perform OCR and may miss formats."""
@@ -157,4 +162,70 @@ def parse_receipt_text(text: str) -> dict:
             else:
                 result[key] = value
     result["parser_note"] = "Demo text parser only; check every extracted field before saving."
+    return result
+
+	
+def analyze_eligibility(case_data: dict, as_of: date | None = None) -> dict:
+    """Assess the recorded return window without guaranteeing a refund."""
+    today = as_of or date.today()
+
+    policy_days = case_data.get("policy_days")
+    deadline = case_data.get("deadline")
+    source = case_data.get("policy_source")
+
+    result = {
+        "case_id": case_data["id"],
+        "assessment": "unknown",
+        "explanation": "",
+        "policy_evidence": {
+            "policy_days": policy_days,
+            "policy_source": source,
+            "deadline": deadline,
+        },
+        "missing_information": [],
+        "recommended_next_steps": [],
+        "warning": (
+            "This is a preliminary return-window assessment, "
+            "not a guarantee of refund eligibility."
+        ),
+    }
+
+    if policy_days is None or deadline is None:
+        result["explanation"] = (
+            "No return window has been recorded, so the deadline "
+            "cannot be assessed."
+        )
+        result["missing_information"].append(
+            "Verified retailer return or warranty policy"
+        )
+        result["recommended_next_steps"].append(
+            "Check the retailer's applicable policy."
+        )
+        return result
+
+    deadline_date = _validate_date(deadline)
+
+    if today <= deadline_date:
+        result["assessment"] = "within_recorded_window"
+        result["explanation"] = (
+            f"The recorded deadline is {deadline_date.isoformat()}, "
+            "which has not passed."
+        )
+        result["recommended_next_steps"].append(
+            "Contact the retailer promptly and confirm applicable conditions."
+        )
+    else:
+        result["assessment"] = "outside_recorded_window"
+        result["explanation"] = (
+            f"The recorded deadline was {deadline_date.isoformat()}, "
+            "which has passed."
+        )
+        result["recommended_next_steps"].append(
+            "Ask the retailer whether warranty, repair, or an exception applies."
+        )
+
+    result["missing_information"].append(
+        "Confirmation of retailer-specific conditions and exceptions"
+    )
+
     return result
