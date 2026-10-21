@@ -288,8 +288,8 @@ def analyze_eligibility(case: dict, today: date | None = None) -> dict:
         outcome = "potentially_eligible"
     else:
         outcome = "outside_known_window"
-
-    # --- explanation ---
+        
+        # --- explanation ---
     def window_phrase() -> str:
         if deadline is None:
             return ""
@@ -301,64 +301,71 @@ def analyze_eligibility(case: dict, today: date | None = None) -> dict:
 
     if outcome == "potentially_eligible":
         explanation = (
-            f"Using the {days}-day window and policy source you recorded, the window that starts on the purchase date "
-            f"({purchase.isoformat()}) ends on {deadline.isoformat()}, which is {window_phrase()}. "
-            "The case therefore appears to be within the window you recorded. This is not a guarantee of a refund, replacement or repair.")
+            f"Using the {days}-day window and policy source you recorded, "
+            f"the window starts on {purchase.isoformat()} and ends on "
+            f"{deadline.isoformat()}. This is not a guarantee of a refund."
+        )
     elif outcome == "outside_known_window":
         explanation = (
-            f"Using the {days}-day window and policy source you recorded, the window ended on {deadline.isoformat()}, "
-            f"which was {window_phrase()}. The case appears to be outside the return window you recorded. "
-            "That does not necessarily rule out other remedies, such as warranty or defective-product coverage, which can follow different terms.")
+            f"The recorded return window ended on {deadline.isoformat()}. "
+            "This does not necessarily rule out other remedies, such as "
+            "warranty or defective-product coverage."
+        )
     elif outcome == "needs_policy_verification":
-        reasons = []
-        if days is None:
-            reasons.append("no return-window length is recorded, so no deadline can be calculated")
-        if source_missing:
-            reasons.append("no policy source is recorded")
-        elif source_unverified:
-            reasons.append("the recorded policy source looks like demo or placeholder text")
-        explanation = "The policy has not been verified: " + "; ".join(reasons) + "."
+        explanation = "The retailer's return policy needs verification."
         if deadline is not None:
-            explanation += (f" For reference only, if a {days}-day window did apply, it would end on {deadline.isoformat()} "
-                            f"({window_phrase()}). Do not rely on that date until the policy is confirmed.")
-        explanation += " Refund Guardian cannot determine eligibility without confirmed terms."
+            explanation += (
+                f" For reference only, a {days}-day window would end on "
+                f"{deadline.isoformat()}. Do not rely on that date until "
+                "the policy is confirmed."
+            )
     else:
-        explanation = "The analysis cannot be completed because " + "; ".join(problems) + "."
+        explanation = (
+            "The analysis cannot be completed because "
+            + "; ".join(problems)
+            + "."
+        )
 
     # --- recommended next steps ---
-    steps: list[str] = []
-    if outcome == "potentially_eligible":
-        steps += [f"Contact the retailer before {deadline.isoformat()} and keep a record of when and how you did.",
-                  "Use 'Generate support draft' to prepare a message, and review it before sending.",
-                  "Schedule a follow-up so the date is not missed.",
-                  "Re-read the retailer's current policy at its source to confirm the window and any conditions."]
-    elif outcome == "outside_known_window":
-        steps += ["Check whether a warranty, defective-product policy or consumer-protection rules apply separately from the return window.",
-                  "Consider asking the retailer or manufacturer what options remain; they may still offer a repair, replacement or goodwill remedy.",
-                  "Use 'Generate support draft' to prepare a message, and review it before sending."]
+    steps = [
+        "Review the retailer's current return and warranty policy.",
+        "Keep proof of purchase and records of communication with the retailer.",
+        "Confirm any applicable deadlines and required evidence with the retailer.",
+    ]
+
+    if outcome == "insufficient_information":
+        steps.insert(0, "Fill in or correct the missing information listed above.")
     elif outcome == "needs_policy_verification":
-        steps += ["Find the retailer's return and warranty policy that applied at the time of purchase (receipt, order email or policy page).",
-                  "Once confirmed, create a new case with the verified window length and the policy source. Policy fields on an existing case cannot be edited yet.",
-                  "Use 'Generate support draft' to ask the retailer to confirm the applicable terms."]
-    else:
-        steps += ["Fill in or correct the missing information listed above.",
-                  "Create a new case with the corrected details; fields other than status and notes cannot be edited on an existing case yet."]
-    steps.append("Keep your receipt or proof of purchase and any photos or notes about the problem.")
+        steps.insert(0, "Find and confirm the applicable retailer policy.")
+    elif outcome == "outside_known_window":
+        steps.insert(0, "Check whether warranty or defective-product remedies apply.")
 
     # --- caveats ---
-    caveats.insert(0, "This is a rule-based check of the details you entered. It does not guarantee a refund, replacement or repair, and it is not legal advice.")
-    if outcome != "insufficient_information":
-        if days is not None and not policy_verified:
-            caveats.append("The policy window and source are unverified. Refund Guardian does not check retailer policies; 'verified' only means a non-placeholder source was recorded.")
-        elif policy_verified:
-            caveats.append("'Verified' means you recorded a window and a source. Refund Guardian has not independently checked the retailer's policy.")
+    caveats.insert(
+        0,
+        "This is a rule-based check. It does not guarantee a refund, replacement, or repair, and it is not legal advice."
+    )
+
+    if not policy_verified:
+        caveats.append(
+            "The recorded policy source or return window is unverified."
+        )
+
     if outcome in ("potentially_eligible", "outside_known_window"):
-        caveats.append("Warranty rights, defective-product rules and other terms may apply in addition to, or instead of, a return window.")
-    low_issue = issue.lower()
-    if any(k in low_issue for k in _FAULT_KEYWORDS):
-        caveats.append("The issue description suggests a possible product fault. Fault-related remedies (warranty, defect rules) may follow different terms and deadlines than a standard return.")
+        caveats.append(
+            "Warranty rights, defective-product rules, or other terms may apply."
+        )
+
+    if any(k in issue.lower() for k in _FAULT_KEYWORDS):
+        caveats.append(
+            "The issue description suggests a possible product fault. "
+            "Fault-related remedies may follow different terms and deadlines."
+        )
+
     if _clean(case.get("status")) in ("resolved", "closed"):
-        caveats.append(f"This case is marked '{case.get('status')}', so the analysis may no longer be relevant.")
+        caveats.append(
+            f"This case is marked '{case.get('status')}', so the analysis may no longer be relevant."
+        )
 
     return {
         "case_id": case.get("id"),
@@ -375,6 +382,51 @@ def analyze_eligibility(case: dict, today: date | None = None) -> dict:
         "analysis_method": "rule_based",
         "ai_explanation": None,
         "llm_note": None,
+    }
+def generate_evidence_checklist(case_data: dict) -> dict:
+    """Suggest evidence that may help support a refund claim."""
+
+    issue = case_data.get("issue_description", "").lower()
+
+    evidence = [
+        {
+            "item": "Purchase receipt or order confirmation",
+            "reason": "Helps establish the purchase date and product details."
+        },
+        {
+            "item": "Description of the issue",
+            "reason": "Helps explain the problem to the retailer."
+        },
+        {
+            "item": "Previous communication with the retailer",
+            "reason": "Provides context if you have already contacted support."
+        }
+    ]
+
+    if any(word in issue for word in [
+        "broken", "damaged", "crack", "physical damage"
+    ]):
+        evidence.append({
+            "item": "Photos showing the damage",
+            "reason": "May help document visible product damage."
+        })
+
+    elif any(word in issue for word in [
+        "disconnect", "not working", "faulty", "defect",
+        "malfunction", "stopped working"
+    ]):
+        evidence.append({
+            "item": "Photo or video demonstrating the problem",
+            "reason": "May help document the issue if it can be reproduced."
+        })
+
+    return {
+        "case_id": case_data["id"],
+        "suggested_evidence": evidence,
+        "warning": (
+            "These are general suggestions, not mandatory requirements. "
+            "Check the retailer's actual policy for required evidence."
+        )
     }
 
 # ---- optional LLM explanation (Anthropic Messages API over stdlib urllib) ----
