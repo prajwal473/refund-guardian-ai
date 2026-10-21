@@ -173,6 +173,30 @@ async function loadCases() {
   }
 }
 
+/* ---------- Eligibility analysis rendering ---------- */
+const ulist = (items) => items && items.length ? `<ul>${items.map(i=>`<li>${esc(i)}</li>`).join("")}</ul>` : "";
+function renderEligibility(r) {
+  const days = r.days_remaining;
+  const when = days === null || days === undefined ? "" : days > 0 ? `${days} day${days===1?"":"s"} remaining` : days === 0 ? "last day" : `passed ${-days} day${days===-1?"":"s"} ago`;
+  const ai = r.ai_explanation
+    ? `<div class="elig-ai"><small>AI-GENERATED EXPLANATION · for readability only; the rule-based result above is what counts</small>${esc(r.ai_explanation)}</div>`
+    : "";
+  const note = r.llm_note ? `<p class="case-meta">${esc(r.llm_note)}</p>` : "";
+  return `<div class="elig elig-${esc(r.outcome)}">
+    <div class="elig-head"><h3>Eligibility analysis</h3><span class="elig-pill">${esc(r.outcome_label)}</span></div>
+    <p class="elig-text">${esc(r.explanation)}</p>
+    <div class="elig-facts">
+      <div class="detail-box"><small>POLICY</small>${r.policy_verified ? "Window and source recorded" : "Not verified"}</div>
+      <div class="detail-box"><small>DEADLINE</small>${r.deadline ? esc(r.deadline) : "Unknown"}${when ? `<br>${esc(when)}${r.policy_verified ? "" : " (unconfirmed)"}` : ""}</div>
+      <div class="detail-box"><small>METHOD</small>${r.analysis_method === "rule_based" ? "Rule-based" : "Rule-based + AI explanation"}<br>as of ${esc(r.as_of)}</div>
+    </div>
+    ${ai}${note}
+    ${r.missing_information.length ? `<h4>Missing or unverified information</h4>${ulist(r.missing_information)}` : ""}
+    <h4>Recommended next steps</h4>${ulist(r.recommended_next_steps)}
+    <h4>Caveats</h4>${ulist(r.caveats)}
+  </div>`;
+}
+
 async function openCase(id) {
   try {
     const c = await api(`/api/cases/${id}`);
@@ -188,14 +212,24 @@ async function openCase(id) {
       </div>
       <div class="actions">
         <button id="draftBtn">Generate support draft</button>
+        <button id="eligibilityBtn">Analyze Eligibility</button>
         <button id="followBtn">Add follow-up</button>
         <button id="progressBtn">Mark in progress</button>
         <button id="resolveBtn">Mark resolved</button>
       </div>
       <div id="draftResult"></div>
+      <div id="eligibilityResult" aria-live="polite"></div>
       <h3>Follow-ups</h3>
       <div class="case-list">${followups.length ? followups.map(f=>`<div class="detail-box"><small>${esc(f.due_date)}</small>${esc(f.note)} · ${f.done ? "Done" : "Pending"}</div>`).join("") : '<div class="empty">No follow-ups scheduled.</div>'}</div>`;
     $("#draftBtn").onclick = async()=>{try{const d=await api(`/api/cases/${id}/draft`,{method:"POST"});$("#draftResult").innerHTML=`<h3>Support message draft</h3><div class="detail-box">${esc(d.draft)}</div><p class="case-meta">${esc(d.warning)}</p>`;}catch(e){toast(e.message)}};
+    $("#eligibilityBtn").onclick = async()=>{
+      const btn=$("#eligibilityBtn"), out=$("#eligibilityResult"), label=btn.textContent;
+      btn.disabled=true; btn.textContent="Analyzing…";
+      out.innerHTML='<div class="elig elig-loading"><div class="skeleton"></div><div class="skeleton"></div></div>';
+      try{ out.innerHTML=renderEligibility(await api(`/api/cases/${id}/eligibility`,{method:"POST",body:JSON.stringify({})})); }
+      catch(e){ out.innerHTML=`<div class="elig elig-error" role="alert"><strong>Eligibility analysis failed.</strong><br>${esc(e.message)}</div>`; }
+      finally{ btn.disabled=false; btn.textContent=label; }
+    };
     $("#followBtn").onclick = async()=>{const due=prompt("Follow-up date (YYYY-MM-DD):");if(!due)return;const note=prompt("What should you follow up on?");if(!note)return;try{await api(`/api/cases/${id}/followups`,{method:"POST",body:JSON.stringify({due_date:due,note})});await openCase(id);toast("Follow-up scheduled.");}catch(e){alert(e.message)}};
     $("#progressBtn").onclick = async()=>{try{await api(`/api/cases/${id}`,{method:"PATCH",body:JSON.stringify({status:"in_progress"})});await loadCases();await openCase(id);}catch(e){toast(e.message)}};
     $("#resolveBtn").onclick = async()=>{if(!confirm("Mark this case resolved? Only do this if it is actually resolved."))return;try{await api(`/api/cases/${id}`,{method:"PATCH",body:JSON.stringify({status:"resolved"})});await loadCases();await openCase(id);}catch(e){toast(e.message)}};

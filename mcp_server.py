@@ -58,6 +58,15 @@ def schedule_followup(case_id: int, due_date: str, note: str) -> dict:
     return result or {"error": f"Case {case_id} was not found."}
 
 @mcp.tool()
+def analyze_refund_eligibility(case_id: int) -> dict:
+    """Rule-based eligibility analysis for a saved case. Uses only the policy window and
+    source the user recorded; it never guarantees a refund and does not call a model."""
+    item = services.get_case(case_id)
+    if not item:
+        return {"error": f"Case {case_id} was not found."}
+    return services.analyze_eligibility(item)
+
+@mcp.tool()
 def verify_case(case_id: int) -> dict:
     """Read back the case and follow-ups to verify persisted state."""
     item = services.get_case(case_id)
