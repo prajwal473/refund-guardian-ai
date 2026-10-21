@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Refund Guardian AI
 **Hackathon starter project — Alexa+ / MCP-inspired consumer-support workflow**
 
@@ -98,3 +99,6 @@ refund_guardian_ai/
 ├── .env.example
 └── README.md
 ```
+=======
+# refund-guardian-ai
+>>>>>>> 832e2bfab6670ec95ad8559765de9a236a690681
