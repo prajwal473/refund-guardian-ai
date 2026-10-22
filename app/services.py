@@ -892,3 +892,28 @@ def get_case_priorities(today: date | None = None) -> list[dict]:
         key=lambda item: item["priority_score"],
         reverse=True,
     )
+def get_case_analytics(today: date | None = None) -> dict:
+    """Return summary analytics for refund cases."""
+    cases = list_cases()
+    priorities = get_case_priorities(today)
+    deadlines = get_deadline_tracker(today)
+    reminders = get_followup_reminders(today)
+
+    status_counts = {}
+    for case in cases:
+        status = case.get("status", "unknown")
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+    return {
+        "total_cases": len(cases),
+        "high_priority_cases": sum(
+            1 for case in priorities if case["priority"] == "high"
+        ),
+        "overdue_followups": sum(
+            1 for item in reminders if item["reminder_status"] == "overdue"
+        ),
+        "approaching_deadlines": sum(
+            1 for item in deadlines if item["deadline_status"] == "approaching"
+        ),
+        "cases_by_status": status_counts,
+    }
