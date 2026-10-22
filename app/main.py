@@ -105,3 +105,8 @@ def evidence_checklist(case_id: int):
         raise HTTPException(status_code=404, detail="Case not found")
 
     return services.generate_evidence_checklist(item)
+
+
+@app.get("/api/deadlines")
+def get_deadline_tracker():
+    return services.get_deadline_tracker()
