@@ -114,3 +114,7 @@ def get_deadline_tracker():
 @app.get("/api/followup-reminders")
 def get_followup_reminders():
     return services.get_followup_reminders()
+
+@app.get("/api/case-priorities")
+def get_case_priorities():
+    return services.get_case_priorities()
