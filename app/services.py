@@ -815,3 +815,27 @@ def get_deadline_tracker(today: date | None = None) -> list[dict]:
         })
 
     return results
+
+def get_followup_reminders(today: date | None = None) -> list[dict]:
+    """Return follow-ups that are due today or overdue."""
+    if today is None:
+        today = date.today()
+
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT f.*, c.product_name, c.retailer
+            FROM followups f
+            JOIN cases c ON c.id = f.case_id
+            WHERE f.due_date <= ?
+            ORDER BY f.due_date, f.id
+        """, (today.isoformat(),)).fetchall()
+
+    return [
+        {
+            **row_to_dict(row),
+            "reminder_status": (
+                "overdue" if row["due_date"] < today.isoformat() else "due_today"
+            ),
+        }
+        for row in rows
+    ]
