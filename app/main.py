@@ -118,3 +118,26 @@ def get_followup_reminders():
 @app.get("/api/case-priorities")
 def get_case_priorities():
     return services.get_case_priorities()
+
+@app.get("/api/case-analytics")
+def get_case_analytics():
+    return services.get_case_analytics()
+
+@app.get("/api/cases/search")
+def search_cases(
+    q: str = "",
+    status: str | None = None,
+    priority: str | None = None,
+    deadline_status: str | None = None,
+    sort_by: str = "purchase_date",
+):
+    try:
+        return services.search_cases(
+            query=q,
+            status=status,
+            priority=priority,
+            deadline_status=deadline_status,
+            sort_by=sort_by,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
