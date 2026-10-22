@@ -242,6 +242,22 @@ async function generateEvidenceChecklist(id) {
   if (evidenceBox(id)) evidenceBox(id).innerHTML = html;
 }
 
+/* ---------- Next Best Action: its buttons reuse the existing handlers; this code makes no API requests itself ---------- */
+const NBA_RESULT_BOX = { draft: "#draftResult", eligibility: "#eligibilityResult", evidence: "#evidenceResult" };
+function runNextAction(action, id) {
+  switch (action) {
+    case "draft": $("#draftBtn")?.click(); break;
+    case "eligibility": $("#eligibilityBtn")?.click(); break;       // ignored while an analysis is already running (button disabled)
+    case "evidence": generateEvidenceChecklist(id); break;           // goes through the evidence request gate
+    case "followup": $("#followBtn")?.click(); break;
+    case "reopen": $("#progressBtn")?.click(); break;
+    case "new_case": openDrawer(); break;
+    default: return;
+  }
+  const box = NBA_RESULT_BOX[action] && $(NBA_RESULT_BOX[action]);
+  if (box) box.scrollIntoView({block: "nearest"});
+}
+
 async function openCase(id) {
   try {
     const c = await api(`/api/cases/${id}`);
@@ -255,6 +271,7 @@ async function openCase(id) {
         <div class="detail-box"><small>PURCHASE</small>${esc(c.retailer)} · ${esc(c.purchase_date)}\n${money(c)}</div>
         <div class="detail-box"><small>STATUS</small>${badge(c.status)}</div>
       </div>
+      ${RGNextAction.renderNextAction(RGNextAction.recommendNextAction(c, {today: new Date(), followups}), c.id, esc)}
       <div class="actions">
         <button id="draftBtn">Generate support draft</button>
         <button id="eligibilityBtn">Analyze Eligibility</button>
@@ -279,6 +296,7 @@ async function openCase(id) {
     };
     $("#evidenceBtn").onclick = () => generateEvidenceChecklist(id);
     if (evidenceGate.isRunning(id)) { setEvidenceBusy(id, true); evidenceBox(id).innerHTML = RGEvidence.renderEvidenceLoading(); }
+    $("#detailContent").querySelectorAll("[data-nba-action]").forEach(btn => btn.addEventListener("click", () => runNextAction(btn.dataset.nbaAction, id)));
     $("#followBtn").onclick = async()=>{const due=prompt("Follow-up date (YYYY-MM-DD):");if(!due)return;const note=prompt("What should you follow up on?");if(!note)return;try{await api(`/api/cases/${id}/followups`,{method:"POST",body:JSON.stringify({due_date:due,note})});await openCase(id);toast("Follow-up scheduled.");}catch(e){alert(e.message)}};
     $("#progressBtn").onclick = async()=>{try{await api(`/api/cases/${id}`,{method:"PATCH",body:JSON.stringify({status:"in_progress"})});await loadCases();await openCase(id);}catch(e){toast(e.message)}};
     $("#resolveBtn").onclick = async()=>{if(!confirm("Mark this case resolved? Only do this if it is actually resolved."))return;try{await api(`/api/cases/${id}`,{method:"PATCH",body:JSON.stringify({status:"resolved"})});await loadCases();await openCase(id);}catch(e){toast(e.message)}};
