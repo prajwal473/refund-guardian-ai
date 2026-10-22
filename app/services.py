@@ -839,3 +839,56 @@ def get_followup_reminders(today: date | None = None) -> list[dict]:
         }
         for row in rows
     ]
+def get_case_priorities(today: date | None = None) -> list[dict]:
+    """Return refund cases ranked by priority."""
+    deadlines = get_deadline_tracker(today)
+    reminders = get_followup_reminders(today)
+
+    overdue_cases = {
+        r["case_id"] for r in reminders
+        if r["reminder_status"] == "overdue"
+    }
+    due_today_cases = {
+        r["case_id"] for r in reminders
+        if r["reminder_status"] == "due_today"
+    }
+
+    results = []
+
+    for case in deadlines:
+        reasons = []
+        score = 0
+
+        if case["deadline_status"] == "expired":
+            score += 100
+            reasons.append("Refund deadline has expired")
+        elif case["deadline_status"] == "approaching":
+            score += 70
+            reasons.append("Refund deadline is approaching")
+
+        if case["case_id"] in overdue_cases:
+            score += 50
+            reasons.append("Follow-up is overdue")
+        elif case["case_id"] in due_today_cases:
+            score += 30
+            reasons.append("Follow-up is due today")
+
+        if score >= 70:
+            priority = "high"
+        elif score >= 30:
+            priority = "medium"
+        else:
+            priority = "low"
+
+        results.append({
+            **case,
+            "priority": priority,
+            "priority_score": score,
+            "priority_reasons": reasons or ["No urgent deadline or follow-up"],
+        })
+
+    return sorted(
+        results,
+        key=lambda item: item["priority_score"],
+        reverse=True,
+    )
