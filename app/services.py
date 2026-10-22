@@ -917,3 +917,69 @@ def get_case_analytics(today: date | None = None) -> dict:
         ),
         "cases_by_status": status_counts,
     }
+
+def search_cases(
+    query: str = "",
+    status: str | None = None,
+    priority: str | None = None,
+    deadline_status: str | None = None,
+    sort_by: str = "purchase_date",
+) -> list[dict]:
+    """Search, filter, and sort refund cases."""
+    cases = list_cases()
+    priorities = {
+        item["case_id"]: item
+        for item in get_case_priorities()
+    }
+    deadlines = {
+        item["case_id"]: item
+        for item in get_deadline_tracker()
+    }
+
+    query = query.strip().lower()
+
+    results = []
+
+    for case in cases:
+        case_id = case["id"]
+        case_priority = priorities.get(case_id, {}).get("priority", "low")
+        case_deadline = deadlines.get(case_id, {}).get(
+            "deadline_status", "unverified"
+        )
+
+        if query and query not in (
+            str(case.get("product_name", "")).lower()
+            + " "
+            + str(case.get("retailer", "")).lower()
+        ):
+            continue
+
+        if status and case.get("status") != status:
+            continue
+
+        if priority and case_priority != priority:
+            continue
+
+        if deadline_status and case_deadline != deadline_status:
+            continue
+
+        results.append({
+            **case,
+            "priority": case_priority,
+            "deadline_status": case_deadline,
+        })
+
+    if sort_by == "priority":
+        order = {"high": 0, "medium": 1, "low": 2}
+        results.sort(key=lambda x: order.get(x["priority"], 3))
+    elif sort_by == "purchase_date":
+        results.sort(
+            key=lambda x: x.get("purchase_date", ""),
+            reverse=True,
+        )
+    else:
+        raise ValueError(
+            "sort_by must be 'purchase_date' or 'priority'"
+        )
+
+    return results
