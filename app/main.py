@@ -110,3 +110,7 @@ def evidence_checklist(case_id: int):
 @app.get("/api/deadlines")
 def get_deadline_tracker():
     return services.get_deadline_tracker()
+
+@app.get("/api/followup-reminders")
+def get_followup_reminders():
+    return services.get_followup_reminders()
