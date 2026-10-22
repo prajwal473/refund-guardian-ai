@@ -8,7 +8,9 @@ async function api(url, options={}) {
   if(!res.ok) {
     const d = data.detail;
     // FastAPI validation errors arrive as a list of {msg, loc} objects
-    throw new Error(typeof d === "string" ? d : Array.isArray(d) ? d.map(x => x.msg).join("; ") : "Request failed");
+    const err = new Error(typeof d === "string" ? d : Array.isArray(d) ? d.map(x => x.msg).join("; ") : "Request failed");
+    err.status = res.status;   // lets callers tell "not found" from other failures
+    throw err;
   }
   return data;
 }
@@ -210,6 +212,36 @@ function renderEligibility(r) {
   </div>`;
 }
 
+/* ---------- Evidence checklist (POST /api/cases/{id}/evidence-checklist) ---------- */
+const evidenceGate = RGEvidence.createRequestGate();   // blocks duplicate requests for the same case
+const evidenceBox = (id) => document.querySelector(`#evidenceResult[data-case-id="${id}"]`);
+function setEvidenceBusy(id, busy) {
+  const btn = document.querySelector(`#evidenceBtn[data-case-id="${id}"]`), box = evidenceBox(id);
+  if (btn) { btn.disabled = busy; btn.textContent = busy ? "Generating…" : RGEvidence.LABEL; }
+  if (box) box.setAttribute("aria-busy", busy ? "true" : "false");
+}
+async function generateEvidenceChecklist(id) {
+  if (!evidenceGate.tryStart(id)) return;              // a request for this case is already running
+  setEvidenceBusy(id, true);
+  if (evidenceBox(id)) evidenceBox(id).innerHTML = RGEvidence.renderEvidenceLoading();
+  let html;
+  try {
+    const data = await api(`/api/cases/${id}/evidence-checklist`, {method: "POST"});
+    const model = RGEvidence.normalizeEvidenceResponse(data, id);
+    html = model.status === "invalid"
+      ? RGEvidence.renderEvidenceError(RGEvidence.describeEvidenceError({kind: "invalid"}), esc)
+      : RGEvidence.renderEvidenceChecklist(model, id, esc);
+  } catch (err) {
+    html = RGEvidence.renderEvidenceError(RGEvidence.describeEvidenceError(err), esc);
+    if (err.status === 404) loadCases();                // the case is gone: refresh the list
+  } finally {
+    evidenceGate.finish(id);
+    setEvidenceBusy(id, false);
+  }
+  // Write into whatever panel for THIS case is on screen now; if the user opened another case meanwhile, drop it.
+  if (evidenceBox(id)) evidenceBox(id).innerHTML = html;
+}
+
 async function openCase(id) {
   try {
     const c = await api(`/api/cases/${id}`);
@@ -226,12 +258,14 @@ async function openCase(id) {
       <div class="actions">
         <button id="draftBtn">Generate support draft</button>
         <button id="eligibilityBtn">Analyze Eligibility</button>
+        <button id="evidenceBtn" data-case-id="${c.id}">Generate Evidence Checklist</button>
         <button id="followBtn">Add follow-up</button>
         <button id="progressBtn">Mark in progress</button>
         <button id="resolveBtn">Mark resolved</button>
       </div>
       <div id="draftResult"></div>
       <div id="eligibilityResult" aria-live="polite"></div>
+      <div id="evidenceResult" data-case-id="${c.id}" aria-live="polite" aria-busy="false"></div>
       <h3>Follow-ups</h3>
       <div class="case-list">${followups.length ? followups.map(f=>`<div class="detail-box"><small>${esc(f.due_date)}</small>${esc(f.note)} · ${f.done ? "Done" : "Pending"}</div>`).join("") : '<div class="empty">No follow-ups scheduled.</div>'}</div>`;
     $("#draftBtn").onclick = async()=>{try{const d=await api(`/api/cases/${id}/draft`,{method:"POST"});$("#draftResult").innerHTML=`<h3>Support message draft</h3><div class="detail-box">${esc(d.draft)}</div><p class="case-meta">${esc(d.warning)}</p>`;}catch(e){toast(e.message)}};
@@ -243,6 +277,8 @@ async function openCase(id) {
       catch(e){ out.innerHTML=`<div class="elig elig-error" role="alert"><strong>Eligibility analysis failed.</strong><br>${esc(e.message)}</div>`; }
       finally{ btn.disabled=false; btn.textContent=label; }
     };
+    $("#evidenceBtn").onclick = () => generateEvidenceChecklist(id);
+    if (evidenceGate.isRunning(id)) { setEvidenceBusy(id, true); evidenceBox(id).innerHTML = RGEvidence.renderEvidenceLoading(); }
     $("#followBtn").onclick = async()=>{const due=prompt("Follow-up date (YYYY-MM-DD):");if(!due)return;const note=prompt("What should you follow up on?");if(!note)return;try{await api(`/api/cases/${id}/followups`,{method:"POST",body:JSON.stringify({due_date:due,note})});await openCase(id);toast("Follow-up scheduled.");}catch(e){alert(e.message)}};
     $("#progressBtn").onclick = async()=>{try{await api(`/api/cases/${id}`,{method:"PATCH",body:JSON.stringify({status:"in_progress"})});await loadCases();await openCase(id);}catch(e){toast(e.message)}};
     $("#resolveBtn").onclick = async()=>{if(!confirm("Mark this case resolved? Only do this if it is actually resolved."))return;try{await api(`/api/cases/${id}`,{method:"PATCH",body:JSON.stringify({status:"resolved"})});await loadCases();await openCase(id);}catch(e){toast(e.message)}};

@@ -221,3 +221,21 @@ footer{text-align:center;color:#6f80aa;font-size:11px;padding:28px 0 4px}
 .dl-unconfirmed{background:transparent;border:1px dashed var(--muted);color:var(--muted);font-weight:500;white-space:normal}
 label.check{display:flex;gap:10px;align-items:flex-start;font-size:12px;line-height:1.5;color:#c5d0e4;margin:4px 0 14px}
 label.check input{display:inline-block;width:auto;margin:3px 0 0;flex:none}
+
+/* ---------- Evidence checklist ---------- */
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.evidence{margin:16px 0;padding:18px;border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:12px;background:#0a1431;animation:rise .35s ease both}
+.evidence h3{margin:0 0 12px;font:700 16px var(--head)}
+.evidence-warning{display:flex;gap:12px;align-items:flex-start;margin:0 0 14px;padding:13px 14px;border:1px solid #fbbf2455;border-radius:10px;background:#fbbf2414}
+.evidence-warning-icon{flex:none;display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--amber);color:#1a1300;font:800 13px var(--head)}
+.evidence-warning strong{display:block;margin-bottom:3px;font-size:12px;letter-spacing:.8px;text-transform:uppercase;color:var(--amber)}
+.evidence-warning p{margin:0;font-size:13px;line-height:1.6;color:var(--text);overflow-wrap:anywhere}
+.evidence-intro,.evidence-empty{margin:0 0 12px;font-size:13px;line-height:1.6;color:var(--muted)}
+.evidence-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.evidence-item{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:#ffffff05}
+.evidence-name{font-size:14px;overflow-wrap:anywhere}
+.evidence-reason{font-size:13px;line-height:1.55;color:var(--muted);overflow-wrap:anywhere}
+.evidence-error{border-left-color:var(--red);color:#fecaca;font-size:13px;line-height:1.6}
+.evidence-error p{margin:4px 0 0;overflow-wrap:anywhere}
+.evidence-loading{display:grid;gap:10px}
+@media(min-width:900px){.evidence-list{grid-template-columns:repeat(2,1fr)}}
