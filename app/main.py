@@ -118,3 +118,7 @@ def get_followup_reminders():
 @app.get("/api/case-priorities")
 def get_case_priorities():
     return services.get_case_priorities()
+
+@app.get("/api/case-analytics")
+def get_case_analytics():
+    return services.get_case_analytics()
