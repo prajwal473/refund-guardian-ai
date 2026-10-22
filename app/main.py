@@ -31,12 +31,6 @@ def health():
 def cases():
     return services.list_cases()
 
-@app.post("/api/cases", status_code=201)
-def create_case(payload: CaseCreate):
-    try:
-        return services.create_case(payload.model_dump())
-    except ValueError as e:
-        raise HTTPException(422, str(e))
 
 @app.post("/api/cases", status_code=201)
 def create_case(payload: CaseCreate):
@@ -44,9 +38,6 @@ def create_case(payload: CaseCreate):
         return services.create_case(payload.model_dump())
     except ValueError as e:
         raise HTTPException(422, str(e))
-
-
-# INSERT THE EXPORT FUNCTION HERE
 @app.get("/api/cases/export")
 def export_cases():
     import csv
@@ -72,15 +63,6 @@ def export_cases():
             "Content-Disposition": 'attachment; filename="refund_cases.csv"'
         },
     )
-
-
-# KEEP YOUR EXISTING FUNCTION BELOW
-@app.get("/api/cases/{case_id}")
-def get_case(case_id: int):
-    result = services.get_case(case_id)
-    if not result:
-        raise HTTPException(404, "Case not found")
-    return result
 
 @app.get("/api/cases/{case_id}")
 def get_case(case_id: int):
@@ -189,30 +171,3 @@ def search_cases(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
-
-
-@app.get("/api/cases/export")
-def export_cases():
-    import csv
-    import io
-    from fastapi.responses import StreamingResponse
-
-    cases = services.list_cases()
-    output = io.StringIO()
-
-    if not cases:
-        output.write("No cases available\n")
-    else:
-        writer = csv.DictWriter(output, fieldnames=cases[0].keys())
-        writer.writeheader()
-        writer.writerows(cases)
-
-    output.seek(0)
-
-    return StreamingResponse(
-        iter([output.getvalue()]),
-        media_type="text/csv",
-        headers={
-            "Content-Disposition": 'attachment; filename="refund_cases.csv"'
-        },
-    )
