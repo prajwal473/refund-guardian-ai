@@ -83,8 +83,18 @@ The MCP server and web application share the same SQLite database. The server re
 - `POST /api/cases/{case_id}/eligibility`
 - `POST /api/cases/{case_id}/followups`
 - `GET /api/cases/{case_id}/followups`
+- `GET /api/cases/export` - export cases as CSV.
+- `POST /api/cases/import` - import cases from CSV.
 - `POST /api/receipt/parse-text`
 
+
+### CSV import/export
+
+The import endpoint accepts a `.csv` file up to 5 MB, encoded as UTF-8. Required columns are `product_name`, `retailer`, `purchase_date`, `purchase_price`, and `issue_description`.
+
+Each imported row is validated. Duplicate cases and invalid rows are rejected and reported; valid rows can still be imported when other rows fail. The response reports the number of imported rows and rejected rows, including row numbers and reasons.
+
+The export endpoint downloads cases as `refund_cases.csv`. Review exported files before sharing them.
 ## Configure
 Settings are read from **environment variables** (see `.env.example`). The app does **not** read a `.env` file by itself; either set variables in your shell, or start uvicorn with `--env-file .env` (uvicorn loads it using `python-dotenv`, which is installed with `uvicorn[standard]`). No API key is required to run the app. Never put API keys in frontend code or commit secrets.
 
