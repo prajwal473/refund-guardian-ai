@@ -786,3 +786,32 @@ def add_llm_explanation(analysis: dict, use_llm: bool = True) -> dict:
         analysis["analysis_method"] = "rule_based+llm_explanation"
     analysis["llm_note"] = note
     return analysis
+
+def get_deadline_tracker(today: date | None = None) -> list[dict]:
+    """Return deadline status for all refund cases."""
+    cases = list_cases()
+    results = []
+
+    for case in cases:
+        analysis = analyze_eligibility(case, today=today)
+        deadline = analysis["deadline"]
+        days = analysis["days_remaining"]
+
+        if analysis.get("policy_status") != "user_confirmed" or deadline is None:
+            status = "unverified"
+        elif days < 0:
+            status = "expired"
+        elif days <= 7:
+            status = "approaching"
+        else:
+            status = "upcoming"
+        results.append({
+            "case_id": case["id"],
+            "product_name": case["product_name"],
+            "retailer": case["retailer"],
+            "deadline": deadline,
+            "days_remaining": days,
+            "deadline_status": status,
+        })
+
+    return results
