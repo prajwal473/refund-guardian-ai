@@ -47,6 +47,23 @@ python mcp_server.py
 ```
 The MCP server uses Streamable HTTP and is expected at `http://127.0.0.1:8001/mcp`. Confirm the installed MCP SDK's CLI/runtime behavior if you upgrade its version. The web app and MCP server share the same SQLite database.
 
+## MCP tools
+
+Refund Guardian exposes seven tools through its local MCP server using Streamable HTTP at `/mcp` (default address: `http://127.0.0.1:8001/mcp`).
+
+| Tool                         | Purpose                                                                                   |
+| ---------------------------- | ----------------------------------------------------------------------------------------- |
+| `list_refund_cases`          | List saved refund and warranty cases.                                                     |
+| `create_refund_case`         | Create a case after validating purchase details and any user-provided policy information. |
+| `draft_support_message`      | Draft a support message for the user to review; it does not send the message.             |
+| `update_case_status`         | Update a case's status and optionally its notes.                                          |
+| `schedule_followup`          | Save a follow-up task locally; it does not send a notification.                           |
+| `analyze_refund_eligibility` | Evaluate recorded case information using the rule-based eligibility engine.               |
+| `verify_case`                | Read back a saved case and its follow-up tasks to verify persisted state.                 |
+
+A compatible MCP client must be configured to connect to the server. The server's protocol negotiation and tool discovery have been tested locally. This does not establish that the project is natively integrated with Alexa+.
+
+The MCP server and web application share the same SQLite database. The server records and analyzes information but does not contact retailers, submit claims, or send notifications.
 ## Demo workflow
 1. Open the dashboard.
 2. Use **Load demo** to fill the form with sample purchase data, or enter your own synthetic data.
