@@ -2,7 +2,7 @@ import logging
 import os
 from pathlib import Path
 from typing import Optional
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from app.models import (CaseCreate, CaseUpdate, EligibilityRequest, EligibilityResponse,
@@ -63,6 +63,98 @@ def export_cases():
             "Content-Disposition": 'attachment; filename="refund_cases.csv"'
         },
     )
+
+@app.post("/api/cases/import")
+async def import_cases(file: UploadFile = File(...)):
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(400, "Please upload a CSV file.")
+
+    try:
+        content = await file.read()
+
+        if len(content) > 5 * 1024 * 1024:
+            raise HTTPException(413, "CSV file must be 5 MB or smaller.")
+
+        text = content.decode("utf-8-sig")
+        reader = csv.DictReader(io.StringIO(text))
+
+        required_fields = {
+            "product_name",
+            "retailer",
+            "purchase_date",
+            "purchase_price",
+            "issue_description",
+        }
+
+        if not reader.fieldnames:
+            raise HTTPException(400, "The CSV file is empty or has no header.")
+
+        if len(reader.fieldnames) != len(set(reader.fieldnames)):
+            raise HTTPException(400, "The CSV contains duplicate column names.")
+
+        missing = required_fields - set(reader.fieldnames)
+        if missing:
+            raise HTTPException(
+                400,
+                detail=f"Missing required columns: {', '.join(sorted(missing))}",
+            )
+
+        existing = services.list_cases()
+        existing_keys = {
+            (
+                str(case.get("product_name", "")).strip().casefold(),
+                str(case.get("retailer", "")).strip().casefold(),
+                str(case.get("purchase_date", "")).strip(),
+            )
+            for case in existing
+        }
+
+        imported = 0
+        rejected = []
+        seen_in_file = set()
+
+        for row_number, row in enumerate(reader, start=2):
+            try:
+                if None in row:
+                    raise ValueError("Row contains more values than the CSV header.")
+
+                data = {
+                    key: (value.strip() if value is not None else "")
+                    for key, value in row.items()
+                }
+
+                case_data = CaseCreate(**data)
+                validated = case_data.model_dump()
+
+                key = (
+                    validated["product_name"].strip().casefold(),
+                    validated["retailer"].strip().casefold(),
+                    validated["purchase_date"].strip(),
+                )
+
+                if key in existing_keys or key in seen_in_file:
+                    raise ValueError("Duplicate case detected.")
+
+                services.create_case(validated)
+                seen_in_file.add(key)
+                imported += 1
+
+            except Exception as exc:
+                rejected.append({
+                    "row": row_number,
+                    "reason": str(exc),
+                })
+
+        return {
+            "imported": imported,
+            "rejected_count": len(rejected),
+            "rejected": rejected,
+        }
+
+    except UnicodeDecodeError:
+        raise HTTPException(400, "The CSV file must use UTF-8 encoding.")
+    finally:
+        await file.close()
 
 @app.get("/api/cases/{case_id}")
 def get_case(case_id: int):
